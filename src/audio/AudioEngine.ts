@@ -1,12 +1,13 @@
-import { AudioEngineTelemetry, ReverbPresetName } from './types';
+import { AudioEngineTelemetry, KaraokeSettings, ReverbPresetName } from './types';
 import { generateReverbImpulse, REVERB_PRESETS } from './ReverbGenerator';
 
 export class AudioEngine {
   private audioCtx: AudioContext | null = null;
   private micStream: MediaStream | null = null;
   private isActive: boolean = false;
+  private onTrackEndedCallback: (() => void) | null = null;
 
-  // Nodes (publicly accessible for inspection/testing)
+  // Nodes (publicly accessible for testing/inspection)
   public sourceNode: MediaStreamAudioSourceNode | null = null;
   public highPassFilter: BiquadFilterNode | null = null;
   public micGainNode: GainNode | null = null;
@@ -41,8 +42,16 @@ export class AudioEngine {
     return this.isActive;
   }
 
+  public getReverbPreset(): ReverbPresetName {
+    return this.currentReverbPreset;
+  }
+
   public getAnalyser(): AnalyserNode | null {
     return this.isActive ? this.analyserNode : null;
+  }
+
+  public onTrackEnded(callback: () => void): void {
+    this.onTrackEndedCallback = callback;
   }
 
   public getTelemetry(): AudioEngineTelemetry {
@@ -61,9 +70,21 @@ export class AudioEngine {
     };
   }
 
-  public async start(deviceId?: string): Promise<void> {
+  public async start(deviceId?: string, initialSettings?: Partial<KaraokeSettings>): Promise<void> {
     if (this.isActive) {
       this.stop();
+    }
+
+    if (initialSettings) {
+      if (initialSettings.micGain !== undefined) this.currentMicGain = initialSettings.micGain;
+      if (initialSettings.isMuted !== undefined) this.isMuted = initialSettings.isMuted;
+      if (initialSettings.reverbPreset !== undefined) this.currentReverbPreset = initialSettings.reverbPreset;
+      if (initialSettings.reverbMix !== undefined) this.currentReverbMix = initialSettings.reverbMix;
+      if (initialSettings.reverbDecay !== undefined) this.currentReverbDecay = initialSettings.reverbDecay;
+      if (initialSettings.delayTime !== undefined) this.currentDelayTime = initialSettings.delayTime;
+      if (initialSettings.delayFeedback !== undefined) this.currentDelayFeedback = initialSettings.delayFeedback;
+      if (initialSettings.delayMix !== undefined) this.currentDelayMix = initialSettings.delayMix;
+      if (initialSettings.toneClarity !== undefined) this.currentToneClarity = initialSettings.toneClarity;
     }
 
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -89,6 +110,16 @@ export class AudioEngine {
     this.micStream = await navigator.mediaDevices.getUserMedia({
       audio: audioConstraints,
     });
+
+    // Detect hardware disconnection
+    const tracks = this.micStream.getAudioTracks ? this.micStream.getAudioTracks() : this.micStream.getTracks();
+    if (tracks && tracks.length > 0) {
+      tracks[0].addEventListener('ended', () => {
+        if (this.onTrackEndedCallback) {
+          this.onTrackEndedCallback();
+        }
+      });
+    }
 
     // 1. Mic Source
     this.sourceNode = this.audioCtx.createMediaStreamSource(this.micStream);
@@ -131,7 +162,7 @@ export class AudioEngine {
     // Reverb Path
     this.reverbConvolver = this.audioCtx.createConvolver();
     this.reverbWetGain = this.audioCtx.createGain();
-    this.reverbWetGain.gain.value = this.currentReverbMix;
+    this.reverbWetGain.gain.value = this.currentReverbPreset === 'dry' ? 0 : this.currentReverbMix;
     this.updateReverbImpulse();
 
     this.toneFilter.connect(this.reverbConvolver);
@@ -193,17 +224,26 @@ export class AudioEngine {
   }
 
   public setReverb(preset: ReverbPresetName, mix: number, decay?: number): void {
+    const presetChanged = this.currentReverbPreset !== preset;
+    const decayChanged = decay !== undefined && Math.abs(this.currentReverbDecay - decay) > 0.01;
+
     this.currentReverbPreset = preset;
     this.currentReverbMix = Math.max(0, Math.min(mix, 1.0));
+
     if (decay !== undefined) {
       this.currentReverbDecay = Math.max(0.2, Math.min(decay, 4.0));
-    } else {
+    } else if (presetChanged) {
       this.currentReverbDecay = REVERB_PRESETS[preset]?.decaySeconds ?? 1.8;
     }
 
     if (this.reverbWetGain && this.audioCtx) {
       const effectiveMix = preset === 'dry' ? 0 : this.currentReverbMix;
       this.reverbWetGain.gain.setTargetAtTime(effectiveMix, this.audioCtx.currentTime, 0.015);
+    }
+
+    // Only regenerate the large impulse buffer when the room size or preset changes,
+    // NEVER on a continuous wet mix slider drag to prevent audio dropouts.
+    if ((presetChanged || decayChanged) && this.audioCtx) {
       this.updateReverbImpulse();
     }
   }
@@ -254,6 +294,26 @@ export class AudioEngine {
     if (this.micStream) {
       this.micStream.getTracks().forEach((track) => track.stop());
       this.micStream = null;
+    }
+
+    // Explicitly disconnect all nodes to ensure deterministic garbage collection
+    try {
+      this.sourceNode?.disconnect();
+      this.highPassFilter?.disconnect();
+      this.micGainNode?.disconnect();
+      this.limiterNode?.disconnect();
+      this.toneFilter?.disconnect();
+      this.dryGainNode?.disconnect();
+      this.reverbConvolver?.disconnect();
+      this.reverbWetGain?.disconnect();
+      this.delayNode?.disconnect();
+      this.delayFeedbackGain?.disconnect();
+      this.delayDampFilter?.disconnect();
+      this.delayWetGain?.disconnect();
+      this.masterGainNode?.disconnect();
+      this.analyserNode?.disconnect();
+    } catch {
+      // Ignored if already disconnected
     }
 
     if (this.audioCtx) {

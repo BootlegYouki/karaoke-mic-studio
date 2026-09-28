@@ -5,11 +5,7 @@
   "description": "Low-latency live microphone monitoring and vocal studio for karaoke in Chrome.",
   "permissions": [
     "sidePanel",
-    "storage",
-    "audioCapture"
-  ],
-  "host_permissions": [
-    "<all_urls>"
+    "storage"
   ],
   "background": {
     "service_worker": "background.js",

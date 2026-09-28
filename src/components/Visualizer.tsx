@@ -8,14 +8,17 @@ interface VisualizerProps {
 
 export function Visualizer({ analyser, isActive }: VisualizerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const meterBarRef = useRef<HTMLDivElement | null>(null);
+  const dbTextRef = useRef<HTMLSpanElement | null>(null);
   const [mode, setMode] = useState<'wave' | 'bars'>('wave');
-  const [peakDb, setPeakDb] = useState<number>(-60);
-  const [isClipping, setIsClipping] = useState<boolean>(false);
 
   useEffect(() => {
     if (!isActive || !analyser) {
-      setPeakDb(-60);
-      setIsClipping(false);
+      if (meterBarRef.current) meterBarRef.current.style.width = '0%';
+      if (dbTextRef.current) {
+        dbTextRef.current.textContent = '-∞';
+        dbTextRef.current.className = 'text-zinc-300 font-mono';
+      }
       return;
     }
 
@@ -28,6 +31,7 @@ export function Visualizer({ analyser, isActive }: VisualizerProps) {
     const bufferLength = analyser.frequencyBinCount;
     const timeData = new Uint8Array(bufferLength);
     const freqData = new Uint8Array(bufferLength);
+    let peakDb = -60;
 
     const renderFrame = () => {
       animationId = requestAnimationFrame(renderFrame);
@@ -46,8 +50,26 @@ export function Visualizer({ analyser, isActive }: VisualizerProps) {
       }
       const rms = Math.sqrt(sumSquares / bufferLength);
       const currentDb = rms > 0.0001 ? Math.max(-60, 20 * Math.log10(rms)) : -60;
-      setPeakDb((prev) => Math.max(currentDb, prev - 1.5)); // smooth meter release
-      setIsClipping(peak >= 0.95);
+      peakDb = Math.max(currentDb, peakDb - 1.2); // smooth meter release
+      const isClipping = peak >= 0.95;
+
+      // Update DOM meter directly via refs for 60fps without React re-render overhead
+      const meterPercent = Math.min(100, Math.max(0, ((peakDb + 60) / 60) * 100));
+      if (meterBarRef.current) {
+        meterBarRef.current.style.width = `${meterPercent}%`;
+        meterBarRef.current.className = `h-full transition-all duration-75 ${
+          isClipping
+            ? 'bg-rose-500'
+            : peakDb > -12
+            ? 'bg-amber-400'
+            : 'bg-emerald-500'
+        }`;
+      }
+
+      if (dbTextRef.current) {
+        dbTextRef.current.textContent = peakDb <= -59.5 ? '-∞' : `${peakDb.toFixed(1)} dB`;
+        dbTextRef.current.className = isClipping ? 'text-rose-400 font-bold' : 'text-zinc-300';
+      }
 
       // Clear Canvas
       const width = canvas.width;
@@ -58,7 +80,6 @@ export function Visualizer({ analyser, isActive }: VisualizerProps) {
       ctx.strokeStyle = '#27272a'; // zinc-800
       ctx.lineWidth = 1;
       ctx.beginPath();
-      // Center horizontal line
       ctx.moveTo(0, height / 2);
       ctx.lineTo(width, height / 2);
       ctx.stroke();
@@ -98,7 +119,7 @@ export function Visualizer({ analyser, isActive }: VisualizerProps) {
           const x = i * (barWidth + 2);
           const y = height - barHeight;
 
-          // Gradient color: Cyan to Emerald
+          // Gradient color: Cyan to Amber to Rose
           ctx.fillStyle = val > 0.85 ? '#f43f5e' : val > 0.6 ? '#f59e0b' : '#06b6d4';
           ctx.fillRect(x, y, barWidth, barHeight);
         }
@@ -111,9 +132,6 @@ export function Visualizer({ analyser, isActive }: VisualizerProps) {
       cancelAnimationFrame(animationId);
     };
   }, [isActive, analyser, mode]);
-
-  // Convert dB (-60 to 0) to 0-100 percentage for meter bar
-  const meterPercent = Math.min(100, Math.max(0, ((peakDb + 60) / 60) * 100));
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3 space-y-2">
@@ -177,21 +195,16 @@ export function Visualizer({ analyser, isActive }: VisualizerProps) {
       <div className="space-y-1">
         <div className="flex items-center justify-between text-[11px] font-mono">
           <span className="text-zinc-500">VU LEVEL</span>
-          <span className={`${isClipping ? 'text-rose-400 font-bold' : 'text-zinc-300'}`}>
-            {peakDb <= -59.5 ? '-∞' : `${peakDb.toFixed(1)} dB`}
+          <span ref={dbTextRef} className="text-zinc-300">
+            -∞
           </span>
         </div>
 
         <div className="h-2 bg-zinc-950 rounded-sm border border-zinc-800 overflow-hidden flex">
           <div
-            className={`h-full transition-all duration-75 ${
-              isClipping
-                ? 'bg-rose-500'
-                : peakDb > -12
-                ? 'bg-amber-400'
-                : 'bg-emerald-500'
-            }`}
-            style={{ width: `${meterPercent}%` }}
+            ref={meterBarRef}
+            className="h-full transition-all duration-75 bg-emerald-500"
+            style={{ width: '0%' }}
           />
         </div>
 
@@ -200,7 +213,7 @@ export function Visualizer({ analyser, isActive }: VisualizerProps) {
           <span>-24</span>
           <span>-12</span>
           <span>-6</span>
-          <span className={isClipping ? 'text-rose-500 font-bold' : ''}>0 dB</span>
+          <span>0 dB</span>
         </div>
       </div>
     </div>

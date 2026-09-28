@@ -90,12 +90,15 @@ class MockAudioContext {
 }
 
 describe('AudioEngine Pipeline', () => {
-  let mockTrack: { stop: ReturnType<typeof vi.fn> };
-  let mockStream: { getTracks: () => any[] };
+  let mockTrack: { stop: ReturnType<typeof vi.fn>; addEventListener: ReturnType<typeof vi.fn> };
+  let mockStream: { getTracks: () => any[]; getAudioTracks: () => any[] };
 
   beforeEach(() => {
-    mockTrack = { stop: vi.fn() };
-    mockStream = { getTracks: () => [mockTrack] };
+    mockTrack = { stop: vi.fn(), addEventListener: vi.fn() };
+    mockStream = {
+      getTracks: () => [mockTrack],
+      getAudioTracks: () => [mockTrack],
+    };
 
     // Setup globals
     (globalThis as any).AudioContext = MockAudioContext;
@@ -113,10 +116,22 @@ describe('AudioEngine Pipeline', () => {
 
   it('starts engine and requests raw singing microphone input', async () => {
     const engine = new AudioEngine();
-    await engine.start();
+    await engine.start('mic-1', {
+      preferredDeviceId: 'mic-1',
+      micGain: 1.8,
+      isMuted: true,
+      reverbPreset: 'room',
+      reverbMix: 0.2,
+      reverbDecay: 0.8,
+      delayTime: 0.2,
+      delayFeedback: 0.3,
+      delayMix: 0.25,
+      toneClarity: 3.0,
+    });
 
     expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledWith({
       audio: expect.objectContaining({
+        deviceId: { exact: 'mic-1' },
         echoCancellation: false,
         noiseSuppression: false,
         autoGainControl: false,
@@ -125,6 +140,22 @@ describe('AudioEngine Pipeline', () => {
 
     expect(engine.getIsActive()).toBe(true);
     expect(engine.getAnalyser()).not.toBeNull();
+    // Starts with initial settings directly (no pop)
+    expect(engine.micGainNode?.gain.value).toBe(1.8);
+    expect(engine.masterGainNode?.gain.value).toBe(0); // muted
+  });
+
+  it('does not re-generate convolver impulse buffer when only adjusting reverb wet mix', async () => {
+    const engine = new AudioEngine();
+    await engine.start();
+
+    const initialBuffer = engine.reverbConvolver?.buffer;
+    expect(initialBuffer).toBeDefined();
+
+    // Adjusting mix only should NOT replace the convolver buffer
+    engine.setReverb(engine.getReverbPreset(), 0.8);
+    expect(engine.reverbConvolver?.buffer).toBe(initialBuffer);
+    expect(engine.reverbWetGain?.gain.value).toBe(0.8);
   });
 
   it('configures the safety limiter and rumble filter', async () => {

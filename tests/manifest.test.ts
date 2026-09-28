@@ -13,12 +13,11 @@ describe('Chrome Extension Manifest V3', () => {
     expect(parsed.name).toBe('Karaoke Mic Studio');
   });
 
-  it('configures permissions for sidePanel and audioCapture', () => {
+  it('declares strictly minimal permissions without overprivileged hosts', () => {
     const raw = fs.readFileSync(manifestPath, 'utf-8');
     const parsed = JSON.parse(raw);
-    expect(parsed.permissions).toContain('sidePanel');
-    expect(parsed.permissions).toContain('storage');
-    expect(parsed.permissions).toContain('audioCapture');
+    expect(parsed.permissions).toEqual(['sidePanel', 'storage']);
+    expect(parsed.host_permissions).toBeUndefined();
   });
 
   it('points side_panel default_path to index.html', () => {

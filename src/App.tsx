@@ -15,6 +15,7 @@ export function App() {
   const [isActive, setIsActive] = useState<boolean>(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [telemetry, setTelemetry] = useState<AudioEngineTelemetry>({
     sampleRate: 48000,
     state: 'suspended',
@@ -23,9 +24,20 @@ export function App() {
 
   // Initialize AudioEngine instance once
   useEffect(() => {
-    audioEngineRef.current = new AudioEngine();
+    const engine = new AudioEngine();
+    audioEngineRef.current = engine;
+
+    // Handle physical mic disconnect / hotplug unplug
+    engine.onTrackEnded(() => {
+      console.warn('Microphone stream disconnected. Halting monitor.');
+      engine.stop();
+      setIsActive(false);
+      setAnalyser(null);
+      setPermissionError('Microphone disconnected.');
+    });
+
     return () => {
-      audioEngineRef.current?.stop();
+      engine.stop();
     };
   }, []);
 
@@ -72,26 +84,56 @@ export function App() {
     if (isActive) {
       engine.stop();
       setIsActive(false);
+      setAnalyser(null);
       setTelemetry(engine.getTelemetry());
     } else {
       setPermissionError(null);
       try {
-        await engine.start(settings.preferredDeviceId || undefined);
+        // Start directly with current user settings to avoid gain burst/pops
+        await engine.start(settings.preferredDeviceId || undefined, settings);
         setIsActive(true);
+        setAnalyser(engine.getAnalyser());
         setTelemetry(engine.getTelemetry());
-        refreshDevices(); // Re-enumerate now that permissions are granted (gives real device labels)
+        refreshDevices(); // Re-enumerate with labels
       } catch (err: any) {
         console.error('Failed to start audio engine:', err);
         setPermissionError(err.name || err.message || 'PermissionDenied');
         setIsActive(false);
+        setAnalyser(null);
       }
     }
-  }, [isActive, settings.preferredDeviceId, refreshDevices]);
+  }, [isActive, settings, refreshDevices]);
 
-  // Keyboard shortcut: Spacebar quick-mute
+  // Handle device change with live reconnection
+  const handleDeviceChange = useCallback(
+    async (deviceId: string) => {
+      updateSettings({ preferredDeviceId: deviceId });
+      const engine = audioEngineRef.current;
+      if (isActive && engine) {
+        try {
+          await engine.start(deviceId || undefined, settings);
+          setAnalyser(engine.getAnalyser());
+          setTelemetry(engine.getTelemetry());
+        } catch (err: any) {
+          console.error('Failed to switch microphone:', err);
+          setPermissionError(err.name || err.message || 'DeviceSwitchError');
+        }
+      }
+    },
+    [isActive, settings, updateSettings]
+  );
+
+  // Keyboard shortcut: Spacebar quick-mute (ignoring inputs and buttons)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement)) {
+      if (
+        e.code === 'Space' &&
+        !(
+          e.target instanceof HTMLInputElement ||
+          e.target instanceof HTMLSelectElement ||
+          e.target instanceof HTMLButtonElement
+        )
+      ) {
         e.preventDefault();
         updateSettings({ isMuted: !settings.isMuted });
       }
@@ -108,8 +150,6 @@ export function App() {
     );
   }
 
-  const analyser = audioEngineRef.current?.getAnalyser() ?? null;
-
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-3 space-y-3 max-w-md mx-auto selection:bg-cyan-500/30 selection:text-cyan-200">
       {/* 1. Header & Hardware Selector */}
@@ -118,12 +158,7 @@ export function App() {
         onToggle={handleToggleMonitor}
         devices={devices}
         selectedDeviceId={settings.preferredDeviceId}
-        onDeviceChange={(deviceId) => {
-          updateSettings({ preferredDeviceId: deviceId });
-          if (isActive) {
-            audioEngineRef.current?.start(deviceId || undefined).catch(console.error);
-          }
-        }}
+        onDeviceChange={handleDeviceChange}
       />
 
       {/* Permission Warning if mic was blocked */}
