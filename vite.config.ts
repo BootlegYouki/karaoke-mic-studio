@@ -11,6 +11,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         sidepanel: resolve(__dirname, 'index.html'),
+        permission: resolve(__dirname, 'permission.html'),
         background: resolve(__dirname, 'src/background.ts'),
       },
       output: {

@@ -28,6 +28,13 @@ describe('Built Extension Distribution (dist/)', () => {
     expect(content).toContain('id="root"');
   });
 
+  it('contains permission.html onboarding tab', () => {
+    const permPath = path.join(distDir, 'permission.html');
+    expect(fs.existsSync(permPath)).toBe(true);
+    const content = fs.readFileSync(permPath, 'utf-8');
+    expect(content).toContain('request-mic-btn');
+  });
+
   it('contains all required extension icons', () => {
     expect(fs.existsSync(path.join(distDir, 'icons/icon-16.png'))).toBe(true);
     expect(fs.existsSync(path.join(distDir, 'icons/icon-48.png'))).toBe(true);

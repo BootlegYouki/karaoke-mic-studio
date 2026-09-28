@@ -1,13 +1,26 @@
-import { ShieldAlert, RefreshCw } from 'lucide-react';
+import { ShieldAlert, ExternalLink } from 'lucide-react';
 
 interface PermissionPromptProps {
   error: string | null;
   onRetry: () => void;
 }
 
+export function openPermissionTab(): void {
+  if (typeof chrome !== 'undefined' && chrome.tabs?.create) {
+    chrome.tabs.create({ url: chrome.runtime.getURL('permission.html') });
+  } else {
+    window.open('permission.html', '_blank');
+  }
+}
+
 export function PermissionPrompt({ error, onRetry }: PermissionPromptProps) {
+  const handleAllowClick = () => {
+    openPermissionTab();
+    onRetry();
+  };
+
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-3">
+    <div className="bg-zinc-900 border border-amber-500/40 rounded-lg p-3.5 space-y-3 shadow-lg">
       <div className="flex items-start gap-2.5">
         <div className="p-1.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 shrink-0">
           <ShieldAlert className="w-4 h-4" />
@@ -17,12 +30,11 @@ export function PermissionPrompt({ error, onRetry }: PermissionPromptProps) {
             Microphone Access Required
           </h3>
           <p className="text-[11px] text-zinc-400 leading-relaxed">
-            Chrome requires microphone permissions to route your singing voice to your headphones.
-            Please grant mic access in your browser prompt or site permissions.
+            Chrome blocks permission dialogs inside Side Panels. Click below to open a one-time tab and click <strong>Allow</strong>.
           </p>
           {error && (
-            <div className="text-[10px] font-mono text-zinc-500 bg-zinc-950 px-2 py-1 rounded border border-zinc-800">
-              Error: {error}
+            <div className="text-[10px] font-mono text-amber-400/90 bg-zinc-950 px-2 py-1 rounded border border-zinc-800">
+              Status: {error}
             </div>
           )}
         </div>
@@ -30,11 +42,12 @@ export function PermissionPrompt({ error, onRetry }: PermissionPromptProps) {
 
       <button
         type="button"
-        onClick={onRetry}
-        className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-mono font-medium hover:bg-zinc-700 transition-colors"
+        onClick={handleAllowClick}
+        aria-label="Allow Microphone Access"
+        className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded bg-cyan-500 hover:bg-cyan-400 text-zinc-950 text-xs font-mono font-semibold transition-colors cursor-pointer"
       >
-        <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
-        <span>Allow Microphone Access</span>
+        <ExternalLink className="w-3.5 h-3.5" />
+        <span>Open Permission Tab</span>
       </button>
     </div>
   );

@@ -32,6 +32,8 @@ Object.defineProperty(window, 'localStorage', {
   configurable: true,
 });
 
+window.open = vi.fn();
+
 beforeEach(() => {
   localStorageMock.clear();
   vi.clearAllMocks();

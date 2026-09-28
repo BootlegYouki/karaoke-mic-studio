@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Grant Microphone Access - Karaoke Mic Studio</title>
+    <link rel="stylesheet" href="/src/styles/globals.css" />
+  </head>
+  <body class="bg-zinc-950 text-zinc-100 min-h-screen flex items-center justify-center p-4 selection:bg-cyan-500/30">
+    <div id="permission-root" class="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-2xl text-center space-y-5">
+      <div class="w-12 h-12 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 mx-auto flex items-center justify-center">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+      </div>
+
+      <div class="space-y-1.5">
+        <h1 class="text-base font-semibold tracking-tight text-zinc-100">
+          Enable Microphone Access
+        </h1>
+        <p class="text-xs text-zinc-400 leading-relaxed">
+          Chrome requires permission to be granted in a full browser tab so it can display the microphone prompt.
+        </p>
+      </div>
+
+      <button
+        id="request-mic-btn"
+        class="w-full py-2.5 px-4 bg-cyan-500 hover:bg-cyan-400 text-zinc-950 font-mono text-xs font-semibold rounded-lg shadow-sm shadow-cyan-500/20 transition-colors cursor-pointer"
+      >
+        Click to Allow Microphone
+      </button>
+
+      <div id="status-container" class="hidden text-xs font-mono p-3 rounded border"></div>
+
+      <p class="text-[11px] text-zinc-500 font-mono">
+        Once allowed, return to the side panel and click Start Mic.
+      </p>
+    </div>
+
+    <script type="module" src="/src/permission.ts"></script>
+  </body>
+</html>

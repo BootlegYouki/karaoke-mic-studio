@@ -5,7 +5,7 @@ import { TopBar } from './components/TopBar';
 import { Visualizer } from './components/Visualizer';
 import { MasterControls } from './components/MasterControls';
 import { EffectsRack } from './components/EffectsRack';
-import { PermissionPrompt } from './components/PermissionPrompt';
+import { PermissionPrompt, openPermissionTab } from './components/PermissionPrompt';
 import { AudioEngineTelemetry } from './audio/types';
 
 export function App() {
@@ -100,6 +100,11 @@ export function App() {
         setPermissionError(err.name || err.message || 'PermissionDenied');
         setIsActive(false);
         setAnalyser(null);
+
+        // Chrome blocks permission dialogs from side panels; open full tab onboarding
+        if (err.name === 'NotAllowedError' || err.message?.includes('Permission denied')) {
+          openPermissionTab();
+        }
       }
     }
   }, [isActive, settings, refreshDevices]);
