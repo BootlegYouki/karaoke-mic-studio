@@ -1,16 +1,18 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, RwLock};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::Stream;
 use ringbuf::traits::{Consumer, Producer, Split};
 use ringbuf::HeapRb;
 
 use super::dsp::DspChain;
 use super::types::{AudioSettings, AudioStatus};
 
+pub struct SendStream(pub cpal::Stream);
+unsafe impl Send for SendStream {}
+
 pub struct AudioController {
-    input_stream: Option<Stream>,
-    output_stream: Option<Stream>,
+    input_stream: Option<SendStream>,
+    output_stream: Option<SendStream>,
     settings: Arc<RwLock<AudioSettings>>,
     current_level_db_bits: Arc<AtomicU32>,
     is_active: bool,
@@ -199,18 +201,18 @@ impl AudioController {
             .play()
             .map_err(|e| format!("Failed to play output stream: {}", e))?;
 
-        self.input_stream = Some(input_stream);
-        self.output_stream = Some(output_stream);
+        self.input_stream = Some(SendStream(input_stream));
+        self.output_stream = Some(SendStream(output_stream));
         self.is_active = true;
 
         Ok(())
     }
 
     pub fn stop(&mut self) {
-        if let Some(stream) = self.input_stream.take() {
+        if let Some(SendStream(stream)) = self.input_stream.take() {
             let _ = stream.pause();
         }
-        if let Some(stream) = self.output_stream.take() {
+        if let Some(SendStream(stream)) = self.output_stream.take() {
             let _ = stream.pause();
         }
         self.current_level_db_bits.store((-60.0f32).to_bits(), Ordering::Relaxed);
