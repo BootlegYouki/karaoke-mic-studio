@@ -1,15 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import React from 'react';
 import { Visualizer } from '../src/components/Visualizer';
 
 describe('Pro-Audio Visualizer Component', () => {
   let mockRafId = 123;
-  let rafCallback: FrameRequestCallback | null = null;
 
   beforeEach(() => {
-    vi.stubGlobal('requestAnimationFrame', vi.fn((cb) => {
-      rafCallback = cb;
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => {
       return mockRafId;
     }));
     vi.stubGlobal('cancelAnimationFrame', vi.fn());

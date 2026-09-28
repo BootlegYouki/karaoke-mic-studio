@@ -1,4 +1,3 @@
-import React from 'react';
 import { Mic, Headphones, Power } from 'lucide-react';
 
 interface TopBarProps {

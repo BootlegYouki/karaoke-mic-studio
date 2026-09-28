@@ -1,4 +1,3 @@
-import React from 'react';
 import { Sparkles, Sliders, AudioLines } from 'lucide-react';
 import { KaraokeSettings, ReverbPresetName } from '../audio/types';
 import { REVERB_PRESETS } from '../audio/ReverbGenerator';

@@ -1,4 +1,3 @@
-import React from 'react';
 import { ShieldAlert, RefreshCw } from 'lucide-react';
 
 interface PermissionPromptProps {

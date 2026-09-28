@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import React from 'react';
 import { TopBar } from '../src/components/TopBar';
 import { MasterControls } from '../src/components/MasterControls';
 import { EffectsRack } from '../src/components/EffectsRack';

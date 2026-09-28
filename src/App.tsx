@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { AudioEngine } from './audio/AudioEngine';
 import { useKaraokeSettings } from './hooks/useKaraokeSettings';
 import { TopBar } from './components/TopBar';

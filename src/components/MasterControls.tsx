@@ -1,4 +1,3 @@
-import React from 'react';
 import { Volume2, Mic, MicOff, RotateCcw } from 'lucide-react';
 
 interface MasterControlsProps {
