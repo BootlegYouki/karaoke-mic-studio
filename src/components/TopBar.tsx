@@ -1,4 +1,4 @@
-import { Mic, Headphones, Power } from 'lucide-react';
+import { Mic, Headphones, Power, ExternalLink } from 'lucide-react';
 
 interface TopBarProps {
   isActive: boolean;
@@ -15,6 +15,18 @@ export function TopBar({
   selectedDeviceId,
   onDeviceChange,
 }: TopBarProps) {
+  const handlePopout = () => {
+    if (typeof chrome !== 'undefined' && chrome.runtime?.getURL) {
+      window.open(
+        chrome.runtime.getURL('index.html'),
+        'KaraokeMicWindow',
+        'width=380,height=620,status=no,menubar=no,toolbar=no'
+      );
+    } else {
+      window.open('index.html', '_blank', 'width=380,height=620');
+    }
+  };
+
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3 space-y-3">
       {/* Title & Master Toggle */}
@@ -24,9 +36,20 @@ export function TopBar({
             <Mic className="w-4 h-4" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold tracking-tight text-zinc-100">
-              Karaoke Mic Studio
-            </h1>
+            <div className="flex items-center gap-1.5">
+              <h1 className="text-sm font-semibold tracking-tight text-zinc-100">
+                Karaoke Mic Studio
+              </h1>
+              <button
+                type="button"
+                onClick={handlePopout}
+                title="Pop out floating window (keeps running anywhere)"
+                aria-label="Pop out floating window"
+                className="text-zinc-500 hover:text-cyan-400 p-0.5 rounded transition-colors"
+              >
+                <ExternalLink className="w-3 h-3" />
+              </button>
+            </div>
             <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 font-mono">
               <Headphones className="w-3 h-3 text-cyan-500/80" />
               <span>Headphones Recommended</span>
@@ -38,7 +61,7 @@ export function TopBar({
           type="button"
           onClick={onToggle}
           aria-label={isActive ? 'Stop Monitor' : 'Start Monitor'}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-mono font-medium transition-all ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-mono font-medium transition-all cursor-pointer ${
             isActive
               ? 'bg-cyan-500 text-zinc-950 shadow-sm shadow-cyan-500/20 font-semibold'
               : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 border border-zinc-700/80'

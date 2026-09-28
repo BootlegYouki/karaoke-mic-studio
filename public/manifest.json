@@ -3,10 +3,10 @@
   "name": "Karaoke Mic Studio",
   "version": "1.0.0",
   "description": "Low-latency live microphone monitoring and vocal studio for karaoke in Chrome.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4J7BGdD+wQt6Z1aQy6f6T5Px3PD7zeU+fgaGwjZycDMMzdPwscGXrAnyc0BW0NzGB5c+IAOC7VPvios/lXytLYHjsINqJaZ+1RDobvBWQVOr7p8iZaCYLb8KvrUMvYonH+rKJHwsgN0gitIRRmnMWj4BezuuDMwW3HMUbH1UzQBXTzYkO5sB6TZgy//GvCLfUHXQ1VPxsu1jqdBpFNAFPMBiVu1ErV6ofZFMRNvBM3/VQzLs2j70XJoRUSl4Zs1Tfi7MjhNLkNFR9G4bnguloTRhBNWJL0Ns1SvAwB3WzjQvJqMiiGrIef/Qznl5HtZ2qQCJsUNOcEhKK8Bu9Z2ORQIDAQAB",
   "permissions": [
     "sidePanel",
-    "storage",
-    "offscreen"
+    "storage"
   ],
   "background": {
     "service_worker": "background.js",

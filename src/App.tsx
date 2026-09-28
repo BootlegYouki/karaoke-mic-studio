@@ -9,60 +9,36 @@ import { PermissionPrompt, openPermissionTab } from './components/PermissionProm
 import { AudioEngineTelemetry } from './audio/types';
 
 export function App() {
-  const localEngineRef = useRef<AudioEngine | null>(null);
+  const audioEngineRef = useRef<AudioEngine | null>(null);
   const { settings, isLoaded, updateSettings, resetSettings } = useKaraokeSettings();
 
   const [isActive, setIsActive] = useState<boolean>(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-  const [streamData, setStreamData] = useState<number[] | null>(null);
-  const [localAnalyser, setLocalAnalyser] = useState<AnalyserNode | null>(null);
+  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [telemetry, setTelemetry] = useState<AudioEngineTelemetry>({
     sampleRate: 48000,
     state: 'suspended',
     baseLatency: 0.012,
   });
 
-  const isExtensionRuntime = typeof chrome !== 'undefined' && !!chrome.runtime?.sendMessage;
-
-  // Initialize and check current background state on mount
+  // Initialize single persistent AudioEngine instance
   useEffect(() => {
-    if (isExtensionRuntime) {
-      // 1. Ensure background offscreen document is ready
-      chrome.runtime.sendMessage({ type: 'ENSURE_OFFSCREEN' }).catch(() => {});
+    const engine = new AudioEngine();
+    audioEngineRef.current = engine;
 
-      // 2. Query running state from background
-      chrome.runtime.sendMessage({ type: 'GET_STATE' }, (response) => {
-        if (chrome.runtime.lastError || !response) return;
-        setIsActive(response.isActive ?? false);
-        if (response.telemetry) setTelemetry(response.telemetry);
-      });
+    engine.onTrackEnded(() => {
+      console.warn('Microphone disconnected.');
+      engine.stop();
+      setIsActive(false);
+      setAnalyser(null);
+      setPermissionError('Microphone was unplugged or disconnected.');
+    });
 
-      // 3. Connect visualizer streaming port (active only while side panel is open)
-      try {
-        const port = chrome.runtime.connect({ name: 'visualizer' });
-        port.onMessage.addListener((msg) => {
-          if (msg.isActive && msg.timeData) {
-            setStreamData(msg.timeData);
-          } else {
-            setStreamData(null);
-          }
-        });
-        return () => {
-          port.disconnect();
-        };
-      } catch {
-        // Ignored in non-extension environment
-      }
-    } else {
-      // Fallback for dev / Vitest environment
-      const engine = new AudioEngine();
-      localEngineRef.current = engine;
-      return () => {
-        engine.stop();
-      };
-    }
-  }, [isExtensionRuntime]);
+    return () => {
+      engine.stop();
+    };
+  }, []);
 
   // Enumerate input devices
   const refreshDevices = useCallback(async () => {
@@ -87,79 +63,68 @@ export function App() {
     }
   }, [refreshDevices]);
 
-  // Sync settings updates to background offscreen engine or local engine
+  // Synchronize settings live with AudioEngine
   useEffect(() => {
-    if (isExtensionRuntime) {
-      chrome.runtime.sendMessage({ type: 'UPDATE_SETTINGS', settings }).catch(() => {});
-    } else if (localEngineRef.current && isActive) {
-      const e = localEngineRef.current;
-      e.setMicGain(settings.micGain);
-      e.setMute(settings.isMuted);
-      e.setReverb(settings.reverbPreset, settings.reverbMix, settings.reverbDecay);
-      e.setDelay(settings.delayTime, settings.delayFeedback, settings.delayMix);
-      e.setTone(settings.toneClarity);
-    }
-  }, [settings, isExtensionRuntime, isActive]);
+    const engine = audioEngineRef.current;
+    if (!engine || !isActive) return;
 
-  // Toggle master monitor power
+    engine.setMicGain(settings.micGain);
+    engine.setMute(settings.isMuted);
+    engine.setReverb(settings.reverbPreset, settings.reverbMix, settings.reverbDecay);
+    engine.setDelay(settings.delayTime, settings.delayFeedback, settings.delayMix);
+    engine.setTone(settings.toneClarity);
+  }, [settings, isActive]);
+
+  // Direct, low-latency monitor toggle with user gesture activation
   const handleToggleMonitor = useCallback(async () => {
-    setPermissionError(null);
+    const engine = audioEngineRef.current;
+    if (!engine) return;
 
     if (isActive) {
-      if (isExtensionRuntime) {
-        chrome.runtime.sendMessage({ type: 'STOP_MIC' }, (res) => {
-          if (res?.success) setIsActive(false);
-        });
-      } else {
-        localEngineRef.current?.stop();
-        setIsActive(false);
-        setLocalAnalyser(null);
-      }
+      engine.stop();
+      setIsActive(false);
+      setAnalyser(null);
+      setTelemetry(engine.getTelemetry());
     } else {
-      if (isExtensionRuntime) {
-        // Ensure offscreen document is spun up
-        await chrome.runtime.sendMessage({ type: 'ENSURE_OFFSCREEN' }).catch(() => {});
+      setPermissionError(null);
+      try {
+        await engine.start(settings.preferredDeviceId || undefined, settings);
+        setIsActive(true);
+        setAnalyser(engine.getAnalyser());
+        setTelemetry(engine.getTelemetry());
+        refreshDevices();
+      } catch (err: any) {
+        console.error('Failed to start audio engine:', err);
+        setPermissionError(err.name || err.message || 'PermissionDenied');
+        setIsActive(false);
+        setAnalyser(null);
 
-        chrome.runtime.sendMessage(
-          {
-            type: 'START_MIC',
-            deviceId: settings.preferredDeviceId || undefined,
-            settings,
-          },
-          (res) => {
-            if (chrome.runtime.lastError || !res?.success) {
-              const err = res?.error || chrome.runtime.lastError?.message || 'PermissionDenied';
-              console.warn('Start mic failed:', err);
-              setPermissionError(err);
-              setIsActive(false);
-              if (err.includes('NotAllowed') || err.includes('Permission') || err.includes('denied')) {
-                openPermissionTab();
-              }
-            } else {
-              setIsActive(true);
-              if (res.telemetry) setTelemetry(res.telemetry);
-              refreshDevices();
-            }
-          }
-        );
-      } else {
-        // Local mode for tests
-        try {
-          const e = localEngineRef.current;
-          if (e) {
-            await e.start(settings.preferredDeviceId || undefined, settings);
-            setIsActive(true);
-            setLocalAnalyser(e.getAnalyser());
-            setTelemetry(e.getTelemetry());
-          }
-        } catch (err: any) {
-          setPermissionError(err.name || err.message);
-          setIsActive(false);
+        // Open permission onboarding if blocked
+        if (err.name === 'NotAllowedError' || err.message?.includes('Permission denied')) {
           openPermissionTab();
         }
       }
     }
-  }, [isActive, isExtensionRuntime, settings, refreshDevices]);
+  }, [isActive, settings, refreshDevices]);
+
+  // Handle switching mic input device
+  const handleDeviceChange = useCallback(
+    async (deviceId: string) => {
+      updateSettings({ preferredDeviceId: deviceId });
+      const engine = audioEngineRef.current;
+      if (isActive && engine) {
+        try {
+          await engine.start(deviceId || undefined, settings);
+          setAnalyser(engine.getAnalyser());
+          setTelemetry(engine.getTelemetry());
+        } catch (err: any) {
+          console.error('Failed to switch microphone:', err);
+          setPermissionError(err.name || err.message || 'DeviceSwitchError');
+        }
+      }
+    },
+    [isActive, settings, updateSettings]
+  );
 
   // Keyboard shortcut: Spacebar quick-mute
   useEffect(() => {
@@ -196,12 +161,7 @@ export function App() {
         onToggle={handleToggleMonitor}
         devices={devices}
         selectedDeviceId={settings.preferredDeviceId}
-        onDeviceChange={(deviceId) => {
-          updateSettings({ preferredDeviceId: deviceId });
-          if (isActive) {
-            handleToggleMonitor().then(() => handleToggleMonitor());
-          }
-        }}
+        onDeviceChange={handleDeviceChange}
       />
 
       {/* Permission Warning if mic was blocked */}
@@ -212,12 +172,8 @@ export function App() {
         />
       )}
 
-      {/* 2. Visualizer & Peak VU Meter */}
-      <Visualizer
-        analyser={localAnalyser}
-        streamData={streamData}
-        isActive={isActive}
-      />
+      {/* 2. Real-time 60fps Visualizer & Peak VU Meter */}
+      <Visualizer analyser={analyser} isActive={isActive} />
 
       {/* 3. Essential Vocal Controls (Volume & Mute) */}
       <MasterControls
@@ -237,10 +193,10 @@ export function App() {
       {/* 5. Minimal Telemetry Footer */}
       <footer className="border-t border-zinc-900 pt-2 flex items-center justify-between text-[10px] font-mono text-zinc-600 px-1">
         <span>
-          DSP: {isActive ? 'BACKGROUND ACTIVE' : 'STANDBY'} ({telemetry.sampleRate / 1000} kHz)
+          DSP: {isActive ? 'LIVE MONITOR' : 'STANDBY'} ({telemetry.sampleRate / 1000} kHz)
         </span>
         <span className="text-zinc-500">
-          Runs when sidebar is closed
+          ~{(telemetry.baseLatency * 1000).toFixed(0)} ms Latency
         </span>
       </footer>
     </div>
