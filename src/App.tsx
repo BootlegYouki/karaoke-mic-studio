@@ -1,133 +1,14 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
-import { AudioEngine } from './audio/AudioEngine';
-import { useKaraokeSettings } from './hooks/useKaraokeSettings';
-import { TopBar } from './components/TopBar';
-import { Visualizer } from './components/Visualizer';
-import { MasterControls } from './components/MasterControls';
-import { EffectsRack } from './components/EffectsRack';
-import { PermissionPrompt, openPermissionTab } from './components/PermissionPrompt';
-import { AudioEngineTelemetry } from './audio/types';
+import { useEffect } from 'react';
+import { Mic, MicOff, Power, Headphones } from 'lucide-react';
+import { useTauriAudio } from './hooks/useTauriAudio';
+import { M3Slider } from './components/M3Slider';
+import { M3SegmentedButton } from './components/M3SegmentedButton';
+import { AudioMeter } from './components/AudioMeter';
 
 export function App() {
-  const audioEngineRef = useRef<AudioEngine | null>(null);
-  const { settings, isLoaded, updateSettings, resetSettings } = useKaraokeSettings();
+  const { settings, status, devices, error, startMic, stopMic, updateSettings } = useTauriAudio();
 
-  const [isActive, setIsActive] = useState<boolean>(false);
-  const [permissionError, setPermissionError] = useState<string | null>(null);
-  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
-  const [telemetry, setTelemetry] = useState<AudioEngineTelemetry>({
-    sampleRate: 48000,
-    state: 'suspended',
-    baseLatency: 0.012,
-  });
-
-  // Initialize single persistent AudioEngine instance
-  useEffect(() => {
-    const engine = new AudioEngine();
-    audioEngineRef.current = engine;
-
-    return () => {
-      engine.stop();
-    };
-  }, []);
-
-  // Enumerate input devices
-  const refreshDevices = useCallback(async () => {
-    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.enumerateDevices) {
-      try {
-        const allDevices = await navigator.mediaDevices.enumerateDevices();
-        const audioInputs = allDevices.filter((d) => d.kind === 'audioinput');
-        setDevices(audioInputs);
-      } catch (e) {
-        console.warn('Failed to enumerate audio devices:', e);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshDevices();
-    if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
-      let debounceTimer: any = null;
-      const onDeviceChange = () => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-          refreshDevices();
-        }, 500);
-      };
-
-      navigator.mediaDevices.addEventListener('devicechange', onDeviceChange);
-      return () => {
-        clearTimeout(debounceTimer);
-        navigator.mediaDevices.removeEventListener('devicechange', onDeviceChange);
-      };
-    }
-  }, [refreshDevices]);
-
-  // Synchronize settings live with AudioEngine
-  useEffect(() => {
-    const engine = audioEngineRef.current;
-    if (!engine || !isActive) return;
-
-    engine.setMicGain(settings.micGain);
-    engine.setMute(settings.isMuted);
-    engine.setReverb(settings.reverbPreset, settings.reverbMix, settings.reverbDecay);
-    engine.setDelay(settings.delayTime, settings.delayFeedback, settings.delayMix);
-    engine.setTone(settings.toneClarity);
-  }, [settings, isActive]);
-
-  // Direct, low-latency monitor toggle with user gesture activation
-  const handleToggleMonitor = useCallback(async () => {
-    const engine = audioEngineRef.current;
-    if (!engine) return;
-
-    if (isActive) {
-      engine.stop();
-      setIsActive(false);
-      setAnalyser(null);
-      setTelemetry(engine.getTelemetry());
-    } else {
-      setPermissionError(null);
-      try {
-        await engine.start(settings.preferredDeviceId || undefined, settings);
-        setIsActive(true);
-        setAnalyser(engine.getAnalyser());
-        setTelemetry(engine.getTelemetry());
-        refreshDevices();
-      } catch (err: any) {
-        console.error('Failed to start audio engine:', err);
-        setPermissionError(err.name || err.message || 'PermissionDenied');
-        setIsActive(false);
-        setAnalyser(null);
-
-        // Open permission onboarding if blocked
-        if (err.name === 'NotAllowedError' || err.message?.includes('Permission denied')) {
-          openPermissionTab();
-        }
-      }
-    }
-  }, [isActive, settings, refreshDevices]);
-
-  // Handle switching mic input device
-  const handleDeviceChange = useCallback(
-    async (deviceId: string) => {
-      updateSettings({ preferredDeviceId: deviceId });
-      const engine = audioEngineRef.current;
-      if (isActive && engine) {
-        try {
-          await engine.start(deviceId || undefined, settings);
-          setAnalyser(engine.getAnalyser());
-          setTelemetry(engine.getTelemetry());
-        } catch (err: any) {
-          console.error('Failed to switch microphone:', err);
-          setPermissionError(err.name || err.message || 'DeviceSwitchError');
-        }
-      }
-    },
-    [isActive, settings, updateSettings]
-  );
-
-  // Keyboard shortcut: Spacebar quick-mute
+  // Spacebar quick-mute shortcut
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
@@ -139,68 +20,192 @@ export function App() {
         )
       ) {
         e.preventDefault();
-        updateSettings({ isMuted: !settings.isMuted });
+        updateSettings({ is_muted: !settings.is_muted });
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [settings.isMuted, updateSettings]);
+  }, [settings.is_muted, updateSettings]);
 
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center font-mono text-xs text-zinc-500">
-        Loading Karaoke Studio...
-      </div>
-    );
-  }
+  const handleToggle = () => {
+    if (status.is_active) {
+      stopMic();
+    } else {
+      startMic(settings.device_name || undefined);
+    }
+  };
+
+  const reverbOptions = [
+    { id: 'dry', label: 'Dry' },
+    { id: 'room', label: 'Room' },
+    { id: 'hall', label: 'Hall' },
+  ];
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 p-3 space-y-3 max-w-md mx-auto selection:bg-cyan-500/30 selection:text-cyan-200">
-      {/* 1. Header & Device Selector */}
-      <TopBar
-        isActive={isActive}
-        onToggle={handleToggleMonitor}
-        devices={devices}
-        selectedDeviceId={settings.preferredDeviceId}
-        onDeviceChange={handleDeviceChange}
-      />
+    <main className="min-h-screen bg-[#111318] text-[#e2e2e9] p-4 flex flex-col gap-3.5 max-w-sm mx-auto select-none">
+      {/* Top Header */}
+      <header className="flex items-center justify-between pt-1">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-full bg-[#1d2024] flex items-center justify-center text-sky-300">
+            <Mic className="w-4 h-4" />
+          </div>
+          <div>
+            <h1 className="text-sm font-semibold tracking-tight text-[#e2e2e9]">
+              Karaoke Mic Studio
+            </h1>
+            <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+              <Headphones className="w-3 h-3 text-sky-300/80" />
+              <span>Headphones Recommended</span>
+            </div>
+          </div>
+        </div>
+      </header>
 
-      {/* Permission Warning if mic was blocked */}
-      {permissionError && (
-        <PermissionPrompt
-          error={permissionError}
-          onRetry={handleToggleMonitor}
-        />
+      {/* Error Alert if any */}
+      {error && (
+        <div className="p-3 rounded-2xl bg-rose-950/60 border border-rose-500/30 text-rose-300 text-xs">
+          {error}
+        </div>
       )}
 
-      {/* 2. Real-time 60fps Visualizer & Peak VU Meter */}
-      <Visualizer analyser={analyser} isActive={isActive} />
+      {/* Master Action: Large MD3 Pill Button */}
+      <button
+        type="button"
+        onClick={handleToggle}
+        className={`w-full py-3.5 px-6 rounded-full font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm ${
+          status.is_active
+            ? 'bg-sky-950 text-sky-200 border border-sky-400/50 hover:bg-sky-900/60'
+            : 'bg-sky-300 text-[#042f65] hover:bg-sky-200 shadow-md'
+        }`}
+      >
+        <Power className={`w-4 h-4 ${status.is_active ? 'text-sky-300' : 'text-[#042f65]'}`} />
+        <span>{status.is_active ? 'MONITOR ACTIVE (CLICK TO STOP)' : 'START MICROPHONE'}</span>
+      </button>
 
-      {/* 3. Essential Vocal Controls (Volume & Mute) */}
-      <MasterControls
-        micGain={settings.micGain}
-        isMuted={settings.isMuted}
-        onGainChange={(gain) => updateSettings({ micGain: gain })}
-        onToggleMute={() => updateSettings({ isMuted: !settings.isMuted })}
-        onReset={resetSettings}
-      />
+      {/* Audio Level Meter */}
+      <div className="p-3 rounded-2xl bg-[#1d2024]">
+        <AudioMeter levelDb={status.current_level_db} isActive={status.is_active} />
+      </div>
 
-      {/* 4. Streamlined Effects (Reverb, Echo, Tone) */}
-      <EffectsRack
-        settings={settings}
-        onUpdateSettings={updateSettings}
-      />
+      {/* Microphone Device Selection */}
+      <div className="p-3.5 rounded-3xl bg-[#1d2024] flex flex-col gap-1.5">
+        <label htmlFor="device-select" className="text-xs font-medium text-zinc-400">
+          Audio Input Device
+        </label>
+        <select
+          id="device-select"
+          value={settings.device_name || ''}
+          onChange={(e) => {
+            const val = e.target.value || null;
+            updateSettings({ device_name: val });
+            if (status.is_active) {
+              startMic(val || undefined);
+            }
+          }}
+          className="w-full bg-[#111318] border border-zinc-700/60 rounded-xl px-3 py-2 text-xs text-[#e2e2e9] focus:outline-none focus:border-sky-400"
+        >
+          <option value="">Default System Microphone</option>
+          {devices.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </div>
 
-      {/* 5. Minimal Telemetry Footer */}
-      <footer className="border-t border-zinc-900 pt-2 flex items-center justify-between text-[10px] font-mono text-zinc-600 px-1">
-        <span>
-          DSP: {isActive ? 'LIVE MONITOR' : 'STANDBY'} ({telemetry.sampleRate / 1000} kHz)
-        </span>
-        <span className="text-zinc-500">
-          ~{(telemetry.baseLatency * 1000).toFixed(0)} ms Latency
-        </span>
+      {/* Volume & Quick Mute */}
+      <div className="p-3.5 rounded-3xl bg-[#1d2024] flex flex-col gap-3">
+        <M3Slider
+          label="Microphone Volume"
+          value={settings.mic_gain}
+          min={0}
+          max={2.5}
+          step={0.05}
+          valueDisplay={`${Math.round(settings.mic_gain * 100)}%`}
+          onChange={(val) => updateSettings({ mic_gain: val })}
+        />
+
+        <button
+          type="button"
+          onClick={() => updateSettings({ is_muted: !settings.is_muted })}
+          className={`py-2 px-4 rounded-full text-xs font-medium transition-colors flex items-center justify-center gap-2 cursor-pointer ${
+            settings.is_muted
+              ? 'bg-rose-950 text-rose-200 border border-rose-500/40'
+              : 'bg-[#282a2f] text-zinc-300 hover:bg-zinc-800'
+          }`}
+        >
+          {settings.is_muted ? (
+            <>
+              <MicOff className="w-3.5 h-3.5 text-rose-400" />
+              <span>Muted [Space]</span>
+            </>
+          ) : (
+            <>
+              <Mic className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Mute Microphone [Space]</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Vocal Effects */}
+      <div className="p-3.5 rounded-3xl bg-[#1d2024] flex flex-col gap-3.5">
+        <div className="flex flex-col gap-2">
+          <span className="text-xs font-medium text-zinc-300">Vocal Reverb</span>
+          <M3SegmentedButton
+            options={reverbOptions}
+            selectedId={settings.reverb_preset}
+            onSelect={(id) => updateSettings({ reverb_preset: id })}
+          />
+          {settings.reverb_preset !== 'dry' && (
+            <M3Slider
+              label="Reverb Level"
+              value={settings.reverb_mix}
+              min={0.05}
+              max={0.8}
+              step={0.05}
+              valueDisplay={`${Math.round(settings.reverb_mix * 100)}%`}
+              onChange={(val) => updateSettings({ reverb_mix: val })}
+            />
+          )}
+        </div>
+
+        <div className="pt-1 border-t border-zinc-800/80">
+          <M3Slider
+            label="Karaoke Echo"
+            value={settings.echo_percent}
+            min={0}
+            max={100}
+            step={5}
+            valueDisplay={settings.echo_percent <= 0 ? 'Off' : `${settings.echo_percent}%`}
+            onChange={(val) => updateSettings({ echo_percent: val })}
+          />
+        </div>
+
+        <div className="pt-1 border-t border-zinc-800/80">
+          <M3Slider
+            label="Vocal Tone"
+            value={settings.tone_db}
+            min={-6}
+            max={6}
+            step={1}
+            valueDisplay={
+              settings.tone_db === 0
+                ? 'Neutral'
+                : settings.tone_db > 0
+                ? `Bright (+${settings.tone_db})`
+                : `Warm (${settings.tone_db})`
+            }
+            onChange={(val) => updateSettings({ tone_db: val })}
+          />
+        </div>
+      </div>
+
+      {/* Desktop Tray Footer */}
+      <footer className="text-center text-[10px] text-zinc-500 py-1 font-sans">
+        Minimizing window keeps audio running in System Tray
       </footer>
-    </div>
+    </main>
   );
 }
 export default App;
