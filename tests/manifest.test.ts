@@ -16,7 +16,7 @@ describe('Chrome Extension Manifest V3', () => {
   it('declares strictly minimal permissions without overprivileged hosts', () => {
     const raw = fs.readFileSync(manifestPath, 'utf-8');
     const parsed = JSON.parse(raw);
-    expect(parsed.permissions).toEqual(['sidePanel', 'storage']);
+    expect(parsed.permissions).toEqual(['sidePanel', 'storage', 'offscreen']);
     expect(parsed.host_permissions).toBeUndefined();
   });
 

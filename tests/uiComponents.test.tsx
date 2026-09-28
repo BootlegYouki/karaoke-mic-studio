@@ -74,12 +74,11 @@ describe('UI Studio Components', () => {
 
       // Verify preset chips exist
       expect(screen.getByRole('button', { name: 'Dry' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Cozy Room' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Karaoke Club' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Concert Hall' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Room' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Hall' })).toBeInTheDocument();
 
       // Click preset
-      fireEvent.click(screen.getByRole('button', { name: 'Concert Hall' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Hall' }));
       expect(onUpdate).toHaveBeenCalledWith(
         expect.objectContaining({ reverbPreset: 'hall' })
       );

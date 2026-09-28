@@ -35,6 +35,11 @@ describe('Built Extension Distribution (dist/)', () => {
     expect(content).toContain('request-mic-btn');
   });
 
+  it('contains offscreen.html for background audio processing', () => {
+    const offPath = path.join(distDir, 'offscreen.html');
+    expect(fs.existsSync(offPath)).toBe(true);
+  });
+
   it('contains all required extension icons', () => {
     expect(fs.existsSync(path.join(distDir, 'icons/icon-16.png'))).toBe(true);
     expect(fs.existsSync(path.join(distDir, 'icons/icon-48.png'))).toBe(true);
