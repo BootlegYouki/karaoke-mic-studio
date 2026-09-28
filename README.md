@@ -1,71 +1,72 @@
-# Karaoke Mic Studio (Chrome Extension)
+# Karaoke Mic Studio
 
-A low-latency live microphone monitor and vocal effects studio built for Chrome (Manifest V3). It runs in the Chrome Side Panel so you can sing karaoke along with any music video (YouTube, Spotify Web, Karaoke Version, etc.) in your browser while hearing your own voice through your headphones in real-time.
+A native, ultra-low latency desktop karaoke microphone monitor and vocal studio built with **Tauri v2**, **Rust** (`cpal`), and **Google Material Design 3 (Material You)**.
+
+Sing along with any music (YouTube, Spotify, instrumental tracks) while monitoring your voice in real-time through your headphones at hardware speeds (<5ms latency), with studio reverb, echo, and safety limiting.
 
 ---
 
 ## Features
 
-- **Direct Vocal Monitoring:** Routes your microphone to your headphones with interactive low latency (~10–15ms).
-- **Singing-Tuned Audio:** Disables telephone voice filters (noise suppression, echo cancellation, auto-gain) so sustaining notes, vibrato, and full musical dynamics are preserved.
-- **Dynamic Safety Limiter:** 2ms fast-attack `DynamicsCompressorNode` acts as a brickwall limiter to prevent digital clipping or ear fatigue when hitting loud notes.
-- **Studio Algorithmic Reverb:** Instant in-memory impulse responses for presets (`Dry`, `Cozy Room`, `Karaoke Club`, `Concert Hall`) plus Wet Mix and Decay sliders.
-- **Karaoke Echo (Delay):** Feedback delay line with warm 2.8kHz low-pass damping for classic karaoke echo.
-- **Vocal Tone EQ:** High-shelf clarity booster/cut (-6dB to +6dB) for airy studio presence.
-- **Real-Time Visualizer & Peak VU Meter:** 60 FPS Canvas oscilloscope waveform / frequency spectrum and segmented peak level meter with clipping warning.
-- **Side Panel Integration:** Stays docked next to your YouTube or music tab without disappearing when you click on the video.
-- **Hardware Hotplugging:** Automatically detects connected USB microphones and headsets.
-- **Pro-Audio Aesthetic:** Tactile dark zinc studio design using Lucide icons—no generic AI slop or emojis.
-
----
-
-## How to Install in Google Chrome
-
-1. **Build the extension** (if not already built):
-   ```bash
-   npm install
-   npm run build
-   ```
-   This generates the production bundle in the `dist/` directory.
-
-2. **Open Extensions in Chrome:**
-   - In Google Chrome, navigate to: `chrome://extensions/`
-   - Enable **Developer mode** using the toggle in the top-right corner.
-
-3. **Load Unpacked:**
-   - Click the **"Load unpacked"** button in the top-left corner.
-   - Select the `dist/` directory inside this project:  
-     `/home/youki/Projects/karaoke-mic-extension/dist`
-
-4. **Pin & Open:**
-   - Click the puzzle piece icon in Chrome's toolbar and pin **Karaoke Mic Studio**.
-   - Click the icon anytime: it will open the docked **Side Panel** on the right side of your browser.
-
----
-
-## Recommended Singing Setup
-
-1. **Plug in Headphones / Headset:**  
-   Always wear headphones or earphones when singing with live microphone monitoring. Open laptop or desktop speakers will cause acoustic feedback loops (howling screech) into the mic.
-2. **Open Your Karaoke Video:**  
-   Open YouTube in any tab (e.g. search for `"Don't Stop Believin' karaoke"` or `"Bohemian Rhapsody instrumental"`).
-3. **Turn On Monitor:**  
-   In the Karaoke Mic Studio side panel, click **START MIC**. Allow microphone permissions when prompted by Chrome.
-4. **Dial in Your Effects:**  
-   - Select **Karaoke Club** or **Concert Hall** reverb.
-   - Adjust the **Echo Delay** to ~180ms for that authentic karaoke vocal bounce.
-   - Sing away!
+- **Sub-5ms Hardware Latency:** Direct native audio capture and playback via ALSA/PipeWire (Linux) and WASAPI (Windows) using lock-free audio ring buffers.
+- **Pure Rust DSP Chain:**
+  - **80Hz High-Pass Filter:** Cuts desk thumps, breath pops, and AC rumble.
+  - **Dynamic Safety Limiter:** 2ms brickwall limiter clamping signals above -6dB to protect your ears from loud vocal spikes.
+  - **Schroeder Reverb:** Diffused room and concert hall acoustic reflection network.
+  - **Karaoke Echo:** Damped circular feedback delay line for classic karaoke bounce.
+  - **Vocal Tone EQ:** High-shelf presence filter (-6dB warm to +6dB bright).
+- **Google Material Design 3 (Material You):**
+  - Calm, human tonal surfaces (`surface-container`).
+  - Tactile **MD3 Pill Sliders** with value badges.
+  - **Reverb Filter Chips:** Connected pill segmented buttons (**[Dry]**, **[Room]**, **[Hall]**).
+  - Calm input level meter with decibel telemetry.
+  - Zero "vibecoded" clutter, zero neon glows or fake sci-fi grids.
+- **System Tray Mode:** Minimizing or closing the window places the app in your system tray so you can sing over full-screen karaoke tracks without window clutter.
+- **Cross-Platform:** Available as a native Debian package (`.deb`) for Linux and installer (`.exe` / `.msi`) for Windows.
 
 ---
 
 ## Keyboard Shortcuts
 
-- **Spacebar:** Quick Mute / Unmute toggle (handy for coughing or speaking between songs).
+- **Spacebar:** Quick Mute / Unmute toggle (handy for speaking or coughing between songs).
 
 ---
 
-## Development & Testing
+## Downloads & Installation
 
-- `npm run dev`: Starts local Vite development server.
-- `npm run build`: Type-checks and compiles the extension to `dist/`.
-- `npm run test`: Executes the complete Vitest test suite (DSP nodes, storage, visualizer, UI components, manifest).
+### Linux
+Download the latest `.deb` package from the [GitHub Releases](https://github.com/BootlegYouki/karaoke-mic-studio/releases) page:
+```bash
+sudo dpkg -i karaoke-mic-studio_*_amd64.deb
+```
+Or run directly from the portable binary.
+
+### Windows
+Download and run the `.exe` or `.msi` installer from the [GitHub Releases](https://github.com/BootlegYouki/karaoke-mic-studio/releases) page.
+
+---
+
+## Development & Building Locally
+
+### Prerequisites
+- Node.js 20+
+- Rust 1.80+
+- Linux build dependencies (if compiling on Linux):
+  ```bash
+  sudo apt install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev
+  ```
+
+### Commands
+```bash
+# Install frontend dependencies
+npm install
+
+# Run frontend + Rust backend in development mode
+npx tauri dev
+
+# Run automated tests (Rust DSP + Frontend M3 components)
+cd src-tauri && cargo test && cd .. && npm run test
+
+# Build production binary
+npx tauri build
+```
