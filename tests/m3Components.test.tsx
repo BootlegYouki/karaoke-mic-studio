@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { M3Slider } from '../src/components/M3Slider';
 import { M3SegmentedButton } from '../src/components/M3SegmentedButton';
 import { AudioMeter } from '../src/components/AudioMeter';
+import { DeviceMenu } from '../src/components/DeviceMenu';
 
 describe('Material Design 3 Components', () => {
   describe('M3Slider', () => {
@@ -65,6 +66,29 @@ describe('Material Design 3 Components', () => {
     it('displays infinity when level is at noise floor or inactive', () => {
       render(<AudioMeter levelDb={-60} isActive={false} />);
       expect(screen.getByText('-∞ dB')).toBeInTheDocument();
+    });
+  });
+
+  describe('DeviceMenu', () => {
+    it('renders selected device and allows opening menu and selecting device', () => {
+      const onSelect = vi.fn();
+      render(
+        <DeviceMenu
+          devices={['USB Mic 1', 'Headset Mic']}
+          selectedDevice="USB Mic 1"
+          onSelect={onSelect}
+        />
+      );
+
+      expect(screen.getByText('USB Mic 1')).toBeInTheDocument();
+
+      // Open menu
+      fireEvent.click(screen.getByText('USB Mic 1'));
+      expect(screen.getByText('Headset Mic')).toBeInTheDocument();
+
+      // Select option
+      fireEvent.click(screen.getByText('Headset Mic'));
+      expect(onSelect).toHaveBeenCalledWith('Headset Mic');
     });
   });
 });

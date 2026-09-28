@@ -4,6 +4,7 @@ import { useTauriAudio } from './hooks/useTauriAudio';
 import { M3Slider } from './components/M3Slider';
 import { M3SegmentedButton } from './components/M3SegmentedButton';
 import { AudioMeter } from './components/AudioMeter';
+import { DeviceMenu } from './components/DeviceMenu';
 
 export function App() {
   const { settings, status, devices, error, startMic, stopMic, updateSettings } = useTauriAudio();
@@ -88,29 +89,20 @@ export function App() {
       </div>
 
       {/* Microphone Device Selection */}
-      <div className="p-3.5 rounded-3xl bg-[#1d2024] flex flex-col gap-1.5">
-        <label htmlFor="device-select" className="text-xs font-medium text-zinc-400">
+      <div className="p-3.5 rounded-3xl bg-[#1d2024] flex flex-col gap-2">
+        <span className="text-xs font-medium text-zinc-400">
           Audio Input Device
-        </label>
-        <select
-          id="device-select"
-          value={settings.device_name || ''}
-          onChange={(e) => {
-            const val = e.target.value || null;
+        </span>
+        <DeviceMenu
+          devices={devices}
+          selectedDevice={settings.device_name}
+          onSelect={(val) => {
             updateSettings({ device_name: val });
             if (status.is_active) {
               startMic(val || undefined);
             }
           }}
-          className="w-full bg-[#111318] border border-zinc-700/60 rounded-xl px-3 py-2 text-xs text-[#e2e2e9] focus:outline-none focus:border-sky-400"
-        >
-          <option value="">Default System Microphone</option>
-          {devices.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
+        />
       </div>
 
       {/* Volume & Quick Mute */}
