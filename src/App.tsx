@@ -27,14 +27,6 @@ export function App() {
     const engine = new AudioEngine();
     audioEngineRef.current = engine;
 
-    engine.onTrackEnded(() => {
-      console.warn('Microphone disconnected.');
-      engine.stop();
-      setIsActive(false);
-      setAnalyser(null);
-      setPermissionError('Microphone was unplugged or disconnected.');
-    });
-
     return () => {
       engine.stop();
     };
