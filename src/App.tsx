@@ -56,9 +56,18 @@ export function App() {
   useEffect(() => {
     refreshDevices();
     if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
-      navigator.mediaDevices.addEventListener('devicechange', refreshDevices);
+      let debounceTimer: any = null;
+      const onDeviceChange = () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          refreshDevices();
+        }, 500);
+      };
+
+      navigator.mediaDevices.addEventListener('devicechange', onDeviceChange);
       return () => {
-        navigator.mediaDevices.removeEventListener('devicechange', refreshDevices);
+        clearTimeout(debounceTimer);
+        navigator.mediaDevices.removeEventListener('devicechange', onDeviceChange);
       };
     }
   }, [refreshDevices]);

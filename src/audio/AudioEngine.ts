@@ -5,6 +5,7 @@ export class AudioEngine {
   private audioCtx: AudioContext | null = null;
   private micStream: MediaStream | null = null;
   private isActive: boolean = false;
+  private isReconnecting: boolean = false;
   private onTrackEndedCallback: (() => void) | null = null;
 
   // Nodes (publicly accessible for testing/inspection)
@@ -28,6 +29,7 @@ export class AudioEngine {
   public analyserNode: AnalyserNode | null = null;
 
   // Current Parameters
+  private currentDeviceId?: string;
   private currentMicGain: number = 1.0;
   private isMuted: boolean = false;
   private currentReverbPreset: ReverbPresetName = 'club';
@@ -75,6 +77,8 @@ export class AudioEngine {
       this.stop();
     }
 
+    this.currentDeviceId = deviceId;
+
     if (initialSettings) {
       if (initialSettings.micGain !== undefined) this.currentMicGain = initialSettings.micGain;
       if (initialSettings.isMuted !== undefined) this.isMuted = initialSettings.isMuted;
@@ -111,15 +115,11 @@ export class AudioEngine {
       audio: audioConstraints,
     });
 
-    // Detect hardware disconnection
-    const tracks = this.micStream.getAudioTracks ? this.micStream.getAudioTracks() : this.micStream.getTracks();
-    if (tracks && tracks.length > 0) {
-      tracks[0].addEventListener('ended', () => {
-        if (this.onTrackEndedCallback) {
-          this.onTrackEndedCallback();
-        }
-      });
-    }
+    // Anchor the active stream to window to prevent V8 Garbage Collector from reclaiming it mid-singing
+    (window as any).__karaokeActiveStream = this.micStream;
+
+    // Attach resilient track listener
+    this.bindTrackEndedListener(this.micStream);
 
     // 1. Mic Source
     this.sourceNode = this.audioCtx.createMediaStreamSource(this.micStream);
@@ -208,6 +208,64 @@ export class AudioEngine {
     this.isActive = true;
   }
 
+  private bindTrackEndedListener(stream: MediaStream): void {
+    const tracks = stream.getAudioTracks ? stream.getAudioTracks() : stream.getTracks();
+    if (tracks && tracks.length > 0) {
+      tracks[0].addEventListener('ended', async () => {
+        // If monitor is still meant to be active, attempt silent auto-recovery first!
+        // This prevents OS driver/sample-rate/GC hiccups from stopping the song.
+        if (this.isActive && !this.isReconnecting) {
+          console.warn('Microphone stream dropped. Attempting seamless auto-recovery...');
+          const recovered = await this.recoverStream();
+          if (recovered) return;
+        }
+
+        if (this.onTrackEndedCallback) {
+          this.onTrackEndedCallback();
+        }
+      });
+    }
+  }
+
+  private async recoverStream(): Promise<boolean> {
+    this.isReconnecting = true;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 200 * attempt));
+        if (!this.isActive || !this.audioCtx) break;
+
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            deviceId: this.currentDeviceId ? { exact: this.currentDeviceId } : undefined,
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            channelCount: 1,
+          },
+        });
+
+        this.micStream = newStream;
+        (window as any).__karaokeActiveStream = newStream;
+
+        // Reconnect new stream source to existing highpass filter
+        this.sourceNode?.disconnect();
+        this.sourceNode = this.audioCtx.createMediaStreamSource(newStream);
+        if (this.highPassFilter) {
+          this.sourceNode.connect(this.highPassFilter);
+        }
+
+        this.bindTrackEndedListener(newStream);
+        console.log(`Microphone connection restored on attempt ${attempt}.`);
+        this.isReconnecting = false;
+        return true;
+      } catch (e) {
+        console.warn(`Recovery attempt ${attempt} failed:`, e);
+      }
+    }
+    this.isReconnecting = false;
+    return false;
+  }
+
   public setMicGain(gain: number): void {
     this.currentMicGain = Math.max(0, Math.min(gain, 2.5));
     if (this.micGainNode && this.audioCtx) {
@@ -241,8 +299,7 @@ export class AudioEngine {
       this.reverbWetGain.gain.setTargetAtTime(effectiveMix, this.audioCtx.currentTime, 0.015);
     }
 
-    // Only regenerate the large impulse buffer when the room size or preset changes,
-    // NEVER on a continuous wet mix slider drag to prevent audio dropouts.
+    // Only regenerate impulse response when room size/preset changes, never on pure mix slider drag
     if ((presetChanged || decayChanged) && this.audioCtx) {
       this.updateReverbImpulse();
     }
@@ -291,12 +348,13 @@ export class AudioEngine {
   }
 
   public stop(): void {
+    this.isReconnecting = false;
     if (this.micStream) {
       this.micStream.getTracks().forEach((track) => track.stop());
       this.micStream = null;
     }
+    (window as any).__karaokeActiveStream = null;
 
-    // Explicitly disconnect all nodes to ensure deterministic garbage collection
     try {
       this.sourceNode?.disconnect();
       this.highPassFilter?.disconnect();
@@ -313,7 +371,7 @@ export class AudioEngine {
       this.masterGainNode?.disconnect();
       this.analyserNode?.disconnect();
     } catch {
-      // Ignored if already disconnected
+      // Ignored
     }
 
     if (this.audioCtx) {
