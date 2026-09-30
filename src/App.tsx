@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Mic, MicOff, Power, Headphones } from 'lucide-react';
+import { Mic, MicOff, Power, Headphones, Volume2 } from 'lucide-react';
 import { useTauriAudio } from './hooks/useTauriAudio';
 import { M3Slider } from './components/M3Slider';
 import { M3SegmentedButton } from './components/M3SegmentedButton';
@@ -7,7 +7,16 @@ import { AudioMeter } from './components/AudioMeter';
 import { DeviceMenu } from './components/DeviceMenu';
 
 export function App() {
-  const { settings, status, devices, error, startMic, stopMic, updateSettings } = useTauriAudio();
+  const {
+    settings,
+    status,
+    devices,
+    outputDevices,
+    error,
+    startMic,
+    stopMic,
+    updateSettings,
+  } = useTauriAudio();
 
   // Spacebar quick-mute shortcut
   useEffect(() => {
@@ -32,7 +41,10 @@ export function App() {
     if (status.is_active) {
       stopMic();
     } else {
-      startMic(settings.device_name || undefined);
+      startMic(
+        settings.device_name || undefined,
+        settings.output_device_name || undefined
+      );
     }
   };
 
@@ -99,7 +111,32 @@ export function App() {
           onSelect={(val) => {
             updateSettings({ device_name: val });
             if (status.is_active) {
-              startMic(val || undefined);
+              startMic(
+                val || undefined,
+                settings.output_device_name || undefined
+              );
+            }
+          }}
+        />
+      </div>
+
+      {/* Speaker / Output Device Selection */}
+      <div className="p-3.5 rounded-3xl bg-[#1d2024] flex flex-col gap-2">
+        <span className="text-xs font-medium text-zinc-400">
+          Audio Output Device (Speakers / Headphones)
+        </span>
+        <DeviceMenu
+          devices={outputDevices}
+          selectedDevice={settings.output_device_name}
+          icon={<Volume2 className="w-3.5 h-3.5 text-zinc-400 shrink-0" />}
+          defaultLabel="Default System Speaker / Output"
+          onSelect={(val) => {
+            updateSettings({ output_device_name: val });
+            if (status.is_active) {
+              startMic(
+                settings.device_name || undefined,
+                val || undefined
+              );
             }
           }}
         />

@@ -60,13 +60,31 @@ impl AudioController {
         devices
     }
 
+    pub fn get_output_devices(&self) -> Vec<String> {
+        let host = cpal::default_host();
+        let mut devices = Vec::new();
+        if let Ok(output_devices) = host.output_devices() {
+            for device in output_devices {
+                if let Ok(name) = device.name() {
+                    devices.push(name);
+                }
+            }
+        }
+        devices
+    }
+
     pub fn update_settings(&mut self, new_settings: AudioSettings) {
         if let Ok(mut lock) = self.settings.write() {
             *lock = new_settings;
         }
     }
 
-    pub fn start(&mut self, device_name: Option<String>, initial_settings: AudioSettings) -> Result<(), String> {
+    pub fn start(
+        &mut self,
+        device_name: Option<String>,
+        output_device_name: Option<String>,
+        initial_settings: AudioSettings,
+    ) -> Result<(), String> {
         if self.is_active {
             self.stop();
         }
@@ -86,10 +104,16 @@ impl AudioController {
         }
         .ok_or_else(|| "No input device available".to_string())?;
 
-        // 2. Find default output device (Headphones / Speakers)
-        let output_device = host
-            .default_output_device()
-            .ok_or_else(|| "No output device available".to_string())?;
+        // 2. Find output device (Headphones / Speakers)
+        let output_device = if let Some(ref name) = output_device_name {
+            host.output_devices()
+                .map_err(|e| e.to_string())?
+                .find(|d| d.name().map(|n| n == *name).unwrap_or(false))
+                .or_else(|| host.default_output_device())
+        } else {
+            host.default_output_device()
+        }
+        .ok_or_else(|| "No output device available".to_string())?;
 
         let input_config = input_device
             .default_input_config()

@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioSettings {
     pub device_name: Option<String>,
+    pub output_device_name: Option<String>,
     pub mic_gain: f32,         // 0.0 to 2.5
     pub is_muted: bool,
     pub reverb_preset: String,   // "dry", "room", "hall"
@@ -15,6 +16,7 @@ impl Default for AudioSettings {
     fn default() -> Self {
         Self {
             device_name: None,
+            output_device_name: None,
             mic_gain: 1.0,
             is_muted: false,
             reverb_preset: "room".to_string(),

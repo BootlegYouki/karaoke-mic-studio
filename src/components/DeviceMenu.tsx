@@ -5,9 +5,17 @@ interface DeviceMenuProps {
   devices: string[];
   selectedDevice: string | null;
   onSelect: (device: string | null) => void;
+  icon?: React.ReactNode;
+  defaultLabel?: string;
 }
 
-export function DeviceMenu({ devices, selectedDevice, onSelect }: DeviceMenuProps) {
+export function DeviceMenu({
+  devices,
+  selectedDevice,
+  onSelect,
+  icon,
+  defaultLabel = 'Default System Microphone',
+}: DeviceMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -22,7 +30,7 @@ export function DeviceMenu({ devices, selectedDevice, onSelect }: DeviceMenuProp
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const currentLabel = selectedDevice || 'Default System Microphone';
+  const currentLabel = selectedDevice || defaultLabel;
 
   return (
     <div ref={containerRef} className="relative w-full select-none">
@@ -33,7 +41,7 @@ export function DeviceMenu({ devices, selectedDevice, onSelect }: DeviceMenuProp
         className="w-full bg-[#111318] hover:bg-[#16181f] border border-zinc-700/60 focus:border-sky-400 rounded-2xl px-3.5 py-2.5 flex items-center justify-between text-xs text-[#e2e2e9] transition-colors cursor-pointer text-left"
       >
         <div className="flex items-center gap-2 truncate">
-          <Mic className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+          {icon || <Mic className="w-3.5 h-3.5 text-zinc-400 shrink-0" />}
           <span className="truncate">{currentLabel}</span>
         </div>
         <ChevronDown
@@ -59,11 +67,14 @@ export function DeviceMenu({ devices, selectedDevice, onSelect }: DeviceMenuProp
                 : 'text-zinc-300 hover:bg-[#282a30] hover:text-zinc-100'
             }`}
           >
-            <span className="truncate">Default System Microphone</span>
+            <div className="flex items-center gap-2 truncate">
+              {icon || <Mic className="w-3.5 h-3.5 text-zinc-400 shrink-0" />}
+              <span className="truncate">{defaultLabel}</span>
+            </div>
             {!selectedDevice && <Check className="w-3.5 h-3.5 text-sky-300 shrink-0" />}
           </button>
 
-          {/* List of hardware input devices */}
+          {/* List of hardware devices */}
           {devices.map((name) => {
             const isSelected = selectedDevice === name;
             return (
@@ -80,7 +91,10 @@ export function DeviceMenu({ devices, selectedDevice, onSelect }: DeviceMenuProp
                     : 'text-zinc-300 hover:bg-[#282a30] hover:text-zinc-100'
                 }`}
               >
-                <span className="truncate">{name}</span>
+                <div className="flex items-center gap-2 truncate">
+                  {icon || <Mic className="w-3.5 h-3.5 text-zinc-400 shrink-0" />}
+                  <span className="truncate">{name}</span>
+                </div>
                 {isSelected && <Check className="w-3.5 h-3.5 text-sky-300 shrink-0" />}
               </button>
             );

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface AudioSettings {
   device_name: string | null;
+  output_device_name: string | null;
   mic_gain: number;
   is_muted: boolean;
   reverb_preset: string;
@@ -18,6 +19,7 @@ export interface AudioStatus {
 
 const DEFAULT_SETTINGS: AudioSettings = {
   device_name: null,
+  output_device_name: null,
   mic_gain: 1.0,
   is_muted: false,
   reverb_preset: 'room',
@@ -39,10 +41,11 @@ export function useTauriAudio() {
     current_level_db: -60.0,
   });
   const [devices, setDevices] = useState<string[]>([]);
+  const [outputDevices, setOutputDevices] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const isTauri = useRef(isTauriEnv());
 
-  // Enumerate input devices on mount
+  // Enumerate input and output devices on mount
   useEffect(() => {
     if (isTauri.current) {
       import('@tauri-apps/api/core')
@@ -50,6 +53,10 @@ export function useTauriAudio() {
           invoke<string[]>('get_audio_devices')
             .then(setDevices)
             .catch((err) => console.warn('Failed to get audio devices:', err));
+
+          invoke<string[]>('get_output_devices')
+            .then(setOutputDevices)
+            .catch((err) => console.warn('Failed to get output devices:', err));
 
           invoke<AudioStatus>('get_status')
             .then(setStatus)
@@ -78,13 +85,14 @@ export function useTauriAudio() {
   }, [status.is_active]);
 
   const startMic = useCallback(
-    async (device?: string) => {
+    async (device?: string, outputDevice?: string) => {
       setError(null);
       if (isTauri.current) {
         try {
           const { invoke } = await import('@tauri-apps/api/core');
           const newStatus = await invoke<AudioStatus>('start_mic', {
             device: device || settings.device_name,
+            output_device: outputDevice || settings.output_device_name,
             settings,
           });
           setStatus(newStatus);
@@ -135,6 +143,7 @@ export function useTauriAudio() {
     settings,
     status,
     devices,
+    outputDevices,
     error,
     startMic,
     stopMic,

@@ -15,9 +15,9 @@
         "label": "main",
         "title": "Karaoke Mic Studio",
         "width": 400,
-        "height": 840,
+        "height": 930,
         "minWidth": 380,
-        "minHeight": 760,
+        "minHeight": 800,
         "resizable": true,
         "decorations": true,
         "center": true

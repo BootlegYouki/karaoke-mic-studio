@@ -13,6 +13,7 @@ describe('Tauri v2 IPC Interface Contract', () => {
     expect(libContent).toContain('fn stop_mic');
     expect(libContent).toContain('fn update_settings');
     expect(libContent).toContain('fn get_audio_devices');
+    expect(libContent).toContain('fn get_output_devices');
     expect(libContent).toContain('fn get_status');
 
     expect(libContent).toContain('generate_handler!');
@@ -20,6 +21,7 @@ describe('Tauri v2 IPC Interface Contract', () => {
     expect(libContent).toContain('stop_mic');
     expect(libContent).toContain('update_settings');
     expect(libContent).toContain('get_audio_devices');
+    expect(libContent).toContain('get_output_devices');
     expect(libContent).toContain('get_status');
   });
 

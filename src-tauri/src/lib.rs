@@ -16,11 +16,12 @@ struct AppState {
 #[tauri::command]
 fn start_mic(
     device: Option<String>,
+    output_device: Option<String>,
     settings: AudioSettings,
     state: State<'_, AppState>,
 ) -> Result<AudioStatus, String> {
     let mut controller = state.audio.lock().map_err(|e| e.to_string())?;
-    controller.start(device, settings)?;
+    controller.start(device, output_device, settings)?;
     Ok(controller.get_status())
 }
 
@@ -45,6 +46,12 @@ fn get_audio_devices(state: State<'_, AppState>) -> Result<Vec<String>, String> 
 }
 
 #[tauri::command]
+fn get_output_devices(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let controller = state.audio.lock().map_err(|e| e.to_string())?;
+    Ok(controller.get_output_devices())
+}
+
+#[tauri::command]
 fn get_status(state: State<'_, AppState>) -> Result<AudioStatus, String> {
     let controller = state.audio.lock().map_err(|e| e.to_string())?;
     Ok(controller.get_status())
@@ -61,6 +68,7 @@ pub fn run() {
             stop_mic,
             update_settings,
             get_audio_devices,
+            get_output_devices,
             get_status,
         ])
         .setup(|app| {
