@@ -12,8 +12,8 @@ describe('Tauri v2 Desktop Configuration', () => {
     const conf = JSON.parse(fs.readFileSync(tauriConfPath, 'utf-8'));
     expect(conf.productName).toBe('Karaoke Mic Studio');
     expect(conf.identifier).toBe('com.bootlegyouki.karaokemic');
-    expect(conf.app.windows[0].width).toBe(380);
-    expect(conf.app.windows[0].height).toBe(640);
+    expect(conf.app.windows[0].width).toBe(400);
+    expect(conf.app.windows[0].height).toBe(840);
     expect(conf.bundle.targets).toContain('deb');
   });
 
